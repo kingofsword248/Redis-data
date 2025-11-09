@@ -1,14 +1,60 @@
-version: '3.8'
+version: "3.8"
 
 services:
-  redis:
-    image: redis:7
-    container_name: redis-server
+  redis-7000:
+    image: redis:7.2
+    container_name: redis-7000
+    command: [
+      "redis-server",
+      "--port", "7000",
+      "--cluster-enabled", "yes",
+      "--cluster-config-file", "nodes.conf",
+      "--cluster-node-timeout", "5000",
+      "--appendonly", "yes",
+      "--maxmemory", "2gb",
+      "--maxmemory-policy", "allkeys-lru"
+    ]
     ports:
-      - "6379:6379"
+      - "7000:7000"
+    networks:
+      - redis-net
 
-  app:
-    build: .
-    container_name: python-redis-app
-    depends_on:
-      - redis
+  redis-7001:
+    image: redis:7.2
+    container_name: redis-7001
+    command: [
+      "redis-server",
+      "--port", "7001",
+      "--cluster-enabled", "yes",
+      "--cluster-config-file", "nodes.conf",
+      "--cluster-node-timeout", "5000",
+      "--appendonly", "yes",
+      "--maxmemory", "2gb",
+      "--maxmemory-policy", "allkeys-lru"
+    ]
+    ports:
+      - "7001:7001"
+    networks:
+      - redis-net
+
+  redis-7002:
+    image: redis:7.2
+    container_name: redis-7002
+    command: [
+      "redis-server",
+      "--port", "7002",
+      "--cluster-enabled", "yes",
+      "--cluster-config-file", "nodes.conf",
+      "--cluster-node-timeout", "5000",
+      "--appendonly", "yes",
+      "--maxmemory", "2gb",
+      "--maxmemory-policy", "allkeys-lru"
+    ]
+    ports:
+      - "7002:7002"
+    networks:
+      - redis-net
+
+networks:
+  redis-net:
+    driver: bridge

@@ -1,39 +1,32 @@
 version: "3.8"
 
-services:
-  redis-7000:
-    image: redis:7.2
-    container_name: redis-7000
-    command: [
-      "redis-server",
-      "--port", "7000",
-      "--cluster-enabled", "yes",
-      "--cluster-config-file", "nodes.conf",
-      "--cluster-node-timeout", "5000",
-      "--appendonly", "yes",
-      "--maxmemory", "2gb",
-      "--maxmemory-policy", "allkeys-lru"
-    ]
-    ports:
-      - "7000:7000"
-    networks:
-      - redis-net
+networks:
+  redis-net:
+    driver: bridge
 
+services:
   redis-7001:
     image: redis:7.2
     container_name: redis-7001
     command: [
       "redis-server",
+      "--bind", "0.0.0.0",
       "--port", "7001",
       "--cluster-enabled", "yes",
       "--cluster-config-file", "nodes.conf",
       "--cluster-node-timeout", "5000",
       "--appendonly", "yes",
       "--maxmemory", "2gb",
-      "--maxmemory-policy", "allkeys-lru"
+      "--maxmemory-policy", "allkeys-lru",
+      "--cluster-announce-ip", "redis-7001",
+      "--cluster-announce-port", "7001",
+      "--cluster-announce-bus-port", "17001"
     ]
     ports:
       - "7001:7001"
+      - "17001:17001"
+    volumes:
+      - ./data/7001:/data
     networks:
       - redis-net
 
@@ -42,19 +35,47 @@ services:
     container_name: redis-7002
     command: [
       "redis-server",
+      "--bind", "0.0.0.0",
       "--port", "7002",
       "--cluster-enabled", "yes",
       "--cluster-config-file", "nodes.conf",
       "--cluster-node-timeout", "5000",
       "--appendonly", "yes",
       "--maxmemory", "2gb",
-      "--maxmemory-policy", "allkeys-lru"
+      "--maxmemory-policy", "allkeys-lru",
+      "--cluster-announce-ip", "redis-7002",
+      "--cluster-announce-port", "7002",
+      "--cluster-announce-bus-port", "17002"
     ]
     ports:
       - "7002:7002"
+      - "17002:17002"
+    volumes:
+      - ./data/7002:/data
     networks:
       - redis-net
 
-networks:
-  redis-net:
-    driver: bridge
+  redis-7003:
+    image: redis:7.2
+    container_name: redis-7003
+    command: [
+      "redis-server",
+      "--bind", "0.0.0.0",
+      "--port", "7003",
+      "--cluster-enabled", "yes",
+      "--cluster-config-file", "nodes.conf",
+      "--cluster-node-timeout", "5000",
+      "--appendonly", "yes",
+      "--maxmemory", "2gb",
+      "--maxmemory-policy", "allkeys-lru",
+      "--cluster-announce-ip", "redis-7003",
+      "--cluster-announce-port", "7003",
+      "--cluster-announce-bus-port", "17003"
+    ]
+    ports:
+      - "7003:7003"
+      - "17003:17003"
+    volumes:
+      - ./data/7003:/data
+    networks:
+      - redis-net

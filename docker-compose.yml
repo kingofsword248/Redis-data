@@ -1,81 +1,22 @@
-version: "3.8"
-
-networks:
-  redis-net:
-    driver: bridge
-
+version: "3.9"
 services:
-  redis-7001:
-    image: redis:7.2
-    container_name: redis-7001
-    command: [
-      "redis-server",
-      "--bind", "0.0.0.0",
-      "--port", "7001",
-      "--cluster-enabled", "yes",
-      "--cluster-config-file", "nodes.conf",
-      "--cluster-node-timeout", "5000",
-      "--appendonly", "yes",
-      "--maxmemory", "2gb",
-      "--maxmemory-policy", "allkeys-lru",
-      "--cluster-announce-ip", "redis-7001",
-      "--cluster-announce-port", "7001",
-      "--cluster-announce-bus-port", "17001"
-    ]
+  mongo:
+    image: mongo:7
+    container_name: mongo
     ports:
-      - "7001:7001"
-      - "17001:17001"
-    volumes:
-      - ./data/7001:/data
-    networks:
-      - redis-net
+      - "27017:27017"
 
-  redis-7002:
-    image: redis:7.2
-    container_name: redis-7002
-    command: [
-      "redis-server",
-      "--bind", "0.0.0.0",
-      "--port", "7002",
-      "--cluster-enabled", "yes",
-      "--cluster-config-file", "nodes.conf",
-      "--cluster-node-timeout", "5000",
-      "--appendonly", "yes",
-      "--maxmemory", "2gb",
-      "--maxmemory-policy", "allkeys-lru",
-      "--cluster-announce-ip", "redis-7002",
-      "--cluster-announce-port", "7002",
-      "--cluster-announce-bus-port", "17002"
-    ]
+  redis:
+    image: redis:7
+    container_name: redis
     ports:
-      - "7002:7002"
-      - "17002:17002"
-    volumes:
-      - ./data/7002:/data
-    networks:
-      - redis-net
+      - "6379:6379"
 
-  redis-7003:
-    image: redis:7.2
-    container_name: redis-7003
-    command: [
-      "redis-server",
-      "--bind", "0.0.0.0",
-      "--port", "7003",
-      "--cluster-enabled", "yes",
-      "--cluster-config-file", "nodes.conf",
-      "--cluster-node-timeout", "5000",
-      "--appendonly", "yes",
-      "--maxmemory", "2gb",
-      "--maxmemory-policy", "allkeys-lru",
-      "--cluster-announce-ip", "redis-7003",
-      "--cluster-announce-port", "7003",
-      "--cluster-announce-bus-port", "17003"
-    ]
+  neo4j:
+    image: neo4j:5
+    container_name: neo4j
+    environment:
+      - NEO4J_AUTH=neo4j/strongpass123   # password ≥ 8 ký tự
     ports:
-      - "7003:7003"
-      - "17003:17003"
-    volumes:
-      - ./data/7003:/data
-    networks:
-      - redis-net
+      - "7474:7474"   # web UI
+      - "7687:7687"   # bolt protocol

@@ -11,9 +11,9 @@ URL = "https://spine-mri-public-data.s3.ap-southeast-1.amazonaws.com/transformed
 
 # Redis Cluster nodes
 startup_nodes = [
-    {"host": "redis-7001", "port": "7001"},
-    {"host": "redis-7002", "port": "7002"},
-    {"host": "redis-7003", "port": "7003"},
+    {"host": "127.0.0.1", "port": "7001"},
+    {"host": "127.0.0.1", "port": "7002"},
+    {"host": "127.0.0.1", "port": "7003"},
 ]
 
 # Kết nối tới Redis Cluster

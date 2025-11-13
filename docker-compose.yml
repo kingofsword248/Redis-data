@@ -4,7 +4,7 @@ services:
     image: mongo:7
     container_name: mongo
     ports:
-      - "27017:27017"
+      - "27000:27017"   # host 27000 -> container 27017
 
   redis:
     image: redis:7

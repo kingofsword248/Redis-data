@@ -1,4 +1,4 @@
-import requests, json, time, random, psutil, os, pandas as pd
+import requests, json, time, random, psutil, os, pandas as pd, redis
 from neo4j import GraphDatabase
 import copy
 import statistics
@@ -8,6 +8,7 @@ from PIL import Image
 import pydicom
 import numpy as np
 from pathlib import Path
+from redis.client import Redis, StrictRedis
 
 # Function to convert image to bytes - handling DICOM files
 def image_to_bytes(image_path):
@@ -66,6 +67,61 @@ LOCAL_ROOT_DIR = r"01_MRI_Data"
 # Filter for patient IDs 0001 to 0030
 target_patients = [f"{i:04d}" for i in range(1, 31)]
 print(f"Using patient IDs from 0001 to 0030 for base64 image conversion ✅")
+sample_patient_id = target_patients[0]  # Use first patient from target list
+
+# ----------------- 2. Redis Benchmark (Optimized) -----------------
+print("\n=== Redis Benchmark ===")
+r = redis.Redis(host="localhost", port=6379, decode_responses=True)
+r.flushdb()
+
+
+# Gom các record theo patient_id
+temp_dict = {}
+for d in data_list:
+    pid = d["patient_id"]
+    item = {
+        "study_id": d["study_id"],
+        "series_id": d["series_id"],
+        "study_date": d["study_date"],
+        "slice_thickness": d["slice_thickness"],
+        "pixel_spacing": d["pixel_spacing"],
+        "orientation": d["orientation"],
+        "manufacturer": d["manufacturer"],
+        "modality": d["modality"],
+        "ima": "",
+        "file_name": d["file_name"],
+        "file_path": "",
+        "annotations": d["file_name"]
+    }
+    temp_dict.setdefault(pid, []).append(item)
+
+start_time = time.time()
+# Lưu vào Redis: key = patient_id, value = list Redis
+for pid, records in temp_dict.items():
+    r.rpush(f"patient_id:{pid}", *records)
+t_insert = time.time() - start_time
+
+# ----------------- Use Case A: Simple Lookups (Redis Strength) -----------------
+
+start_time = time.time()
+res_a2 = r.lrange(f"patient_id:{sample_patient_id}", 0, -1)
+t_query_a2 = time.time() - start_time
+
+results.append({
+    "DB": "Redis",
+    "InsertTime": t_insert,
+    "UseCaseA_SimpleQuery_Time": t_query_a2,
+    "UseCaseB_Relationship_Time": "N/A",
+    "UseCaseC_Aggregation_Time": "N/A",
+    "UseCaseD_ComplexFilter_Time": "N/A",
+    "Records": len(data_list),
+    "UseCaseA_Records": len(res_a2) if res_a2 else 0,
+    "UseCaseB_Records": "N/A",
+    "UseCaseC_Groups": "N/A",
+    "UseCaseD_Records": "N/A"
+})
+print(
+    f"Redis: Insert {t_insert:.2f}s | A:SimpleQuery { t_query_a2:.6f}s ")
 
 # ----------------- 3. Neo4j -----------------
 print("\n=== Neo4j Benchmark ===")
@@ -218,7 +274,7 @@ with driver.session(database='binary-ima') as session:
     t_query_a1 = time.time() - start_time
 
     # A2: Get all images for a patient
-    sample_patient_id = target_patients[0]  # Use first patient from target list
+
     start_time = time.time()
     result_a2 = session.run("""
         MATCH (p:Patient {patient_id: $pid})-[:HAS_STUDY]->(:Study)-[:HAS_SERIES]->(:Series)-[:CONTAINS]->(img:Image)

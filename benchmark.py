@@ -587,48 +587,54 @@ with driver.session() as session:
     # Neo4j can do this but MongoDB's aggregation pipeline is more powerful for nested aggregations
     start_time = time.time()
     result_c = session.run("""
-        MATCH (img:Image)
+        // Start with Image nodes and traverse back to Patient
+        MATCH (img:Image)<-[:CONTAINS]-(series:Series)<-[:HAS_SERIES]-(study:Study)<-[:HAS_STUDY]-(patient:Patient)
+        
         // First level grouping: manufacturer + slice_thickness
         WITH img.manufacturer as manufacturer, 
-             img.slice_thickness as slice_thickness,
-             img.pixel_spacing_x as px_x,
-             img.patient_id as patient_id,
-             img.study_id as study_id,
-             img.series_id as series_id
+            img.slice_thickness as slice_thickness,
+            img.pixel_spacing_x as px_x,
+            patient.patient_id as patient_id,
+            study.study_id as study_id,
+            series.series_id as series_id
+            
         WITH manufacturer, slice_thickness,
-             count(*) as image_count,
-             avg(px_x) as avg_pixel_spacing_x,
-             min(px_x) as min_pixel_spacing_x,
-             max(px_x) as max_pixel_spacing_x,
-             stDev(px_x) as stddev_pixel_spacing_x,
-             collect(DISTINCT patient_id) as patients,
-             collect(DISTINCT study_id) as studies,
-             collect(DISTINCT series_id) as series
+            count(*) as image_count,
+            avg(px_x) as avg_pixel_spacing_x,
+            min(px_x) as min_pixel_spacing_x,
+            max(px_x) as max_pixel_spacing_x,
+            stDev(px_x) as stddev_pixel_spacing_x,
+            collect(DISTINCT patient_id) as patients,
+            collect(DISTINCT study_id) as studies,
+            collect(DISTINCT series_id) as series
+            
         WITH manufacturer, slice_thickness, image_count,
-             avg_pixel_spacing_x, min_pixel_spacing_x, max_pixel_spacing_x, stddev_pixel_spacing_x,
-             size(patients) as patient_count,
-             size(studies) as study_count,
-             size(series) as series_count,
-             CASE WHEN size(patients) > 0 
-                  THEN toFloat(image_count) / size(patients) 
-                  ELSE 0.0 
-             END as avg_images_per_patient
+            avg_pixel_spacing_x, min_pixel_spacing_x, max_pixel_spacing_x, stddev_pixel_spacing_x,
+            size(patients) as patient_count,
+            size(studies) as study_count,
+            size(series) as series_count,
+            CASE WHEN size(patients) > 0 
+                THEN toFloat(image_count) / size(patients) 
+                ELSE 0.0 
+            END as avg_images_per_patient
+            
         // Second level: Group by manufacturer
         WITH manufacturer,
-             sum(image_count) as total_images,
-             sum(patient_count) as total_patients,
-             collect({
-                 slice_thickness: slice_thickness,
-                 image_count: image_count,
-                 avg_pixel_spacing_x: avg_pixel_spacing_x,
-                 stddev_slice_thickness: 0.0,
-                 patient_count: patient_count
-             }) as slice_thickness_groups,
-             avg(avg_pixel_spacing_x) as overall_avg_pixel_spacing_x,
-             min(slice_thickness) as min_slice_thickness,
-             max(slice_thickness) as max_slice_thickness
+            sum(image_count) as total_images,
+            sum(patient_count) as total_patients,
+            collect({
+                slice_thickness: slice_thickness,
+                image_count: image_count,
+                avg_pixel_spacing_x: avg_pixel_spacing_x,
+                stddev_slice_thickness: 0.0,
+                patient_count: patient_count
+            }) as slice_thickness_groups,
+            avg(avg_pixel_spacing_x) as overall_avg_pixel_spacing_x,
+            min(slice_thickness) as min_slice_thickness,
+            max(slice_thickness) as max_slice_thickness
+            
         RETURN manufacturer, total_images, total_patients, slice_thickness_groups,
-               overall_avg_pixel_spacing_x, min_slice_thickness, max_slice_thickness
+            overall_avg_pixel_spacing_x, min_slice_thickness, max_slice_thickness
         ORDER BY total_images DESC
     """)
     res_c = [dict(record) for record in result_c]

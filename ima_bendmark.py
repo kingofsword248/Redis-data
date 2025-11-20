@@ -737,7 +737,11 @@ with driver.session() as session:
         session.run("""
             UNWIND $batch AS record
             MERGE (p:Patient {patient_id: record.pid})
-            SET p.notes = record.notes
+            
+            // Create a single Notes node per patient
+            CREATE (n:Notes {content: record.notes, created_at: timestamp()})
+            MERGE (p)-[:HAS_NOTES]->(n)
+            
             MERGE (study:Study {study_id: record.study_id})
             MERGE (p)-[:HAS_STUDY]->(study)
             MERGE (series:Series {series_id: record.series_id})
@@ -757,6 +761,7 @@ with driver.session() as session:
 
     t_insert = time.time() - start_time
     print(f"Neo4j: Insert {t_insert:.2f}s")
+
     # ----------------- Use Case A: Simple Lookups (Redis Strength) -----------------
    
 
@@ -868,11 +873,16 @@ with driver.session() as session:
     new_notes = "Updated notes: Patient follow-up scheduled for next month."
     start_time = time.time()
     result_e = session.run("""
-        MATCH (p:Patient {patient_id: $pid})
-        SET p.notes = $new_notes
-        RETURN p
+        MATCH (p:Patient {patient_id: $pid})-[r:HAS_NOTES]->(old_notes:Notes)
+        // Create a new Notes node with updated content
+        CREATE (n:Notes {content: $new_notes, created_at: timestamp()})
+        // Connect patient to new notes
+        CREATE (p)-[:HAS_NOTES]->(n)
+        // Delete the old relationship and notes node
+        DELETE r, old_notes
+        RETURN n
     """, pid=sample_patient_id, new_notes=new_notes)
-    res_e = [record["p"] for record in result_e]
+    res_e = [record["n"] for record in result_e]
     t_query_e = time.time() - start_time
 
     # ----------------- Use Case F: Delete Patient -----------------
@@ -889,10 +899,11 @@ with driver.session() as session:
     # Delete patient and all connected nodes (cascading delete)
     session.run("""
         MATCH (p:Patient {patient_id: $pid})
+        OPTIONAL MATCH (p)-[:HAS_NOTES]->(notes:Notes)
         OPTIONAL MATCH (p)-[:HAS_STUDY]->(study:Study)
         OPTIONAL MATCH (study)-[:HAS_SERIES]->(series:Series)
         OPTIONAL MATCH (series)-[:CONTAINS]->(img:Image)
-        DETACH DELETE p, study, series, img
+        DETACH DELETE p, notes, study, series, img
     """, pid=sample_patient_id)
     t_query_f = time.time() - start_time
     deleted_count_f = deleted_images_count
@@ -903,7 +914,11 @@ with driver.session() as session:
     start_time = time.time()
     result_g = session.run("""
         MERGE (p:Patient {patient_id: $pid})
-        SET p.notes = $notes
+        
+        // Create Notes node
+        CREATE (n:Notes {content: $notes, created_at: timestamp()})
+        CREATE (p)-[:HAS_NOTES]->(n)
+        
         MERGE (study:Study {study_id: $study_id})
         MERGE (p)-[:HAS_STUDY]->(study)
         MERGE (series:Series {series_id: $series_id})
@@ -918,7 +933,7 @@ with driver.session() as session:
             modality: $modality
         })
         CREATE (series)-[:CONTAINS]->(img)
-        RETURN p, img
+        RETURN p, n, img
     """, 
         pid=new_patient_id,
         notes="New test patient added via benchmark",

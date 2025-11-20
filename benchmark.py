@@ -567,7 +567,7 @@ print(f"Redis: Insert {t_insert:.2f}s | A:SimpleLookup {t_query_a2:.3f}s | B:Rel
 
 # ----------------- 3. Neo4j -----------------
 print("\n=== Neo4j Benchmark ===")
-driver = GraphDatabase.driver("bolt://localhost:7687", auth=("neo4j","strongpass123"))
+driver = GraphDatabase.driver("bolt://localhost:7687", auth=("neo4j","12345678"))
 with driver.session() as session:
     # Xóa dữ liệu cũ
     session.run("MATCH (n) DETACH DELETE n")
@@ -611,7 +611,13 @@ with driver.session() as session:
         session.run("""
             UNWIND $batch AS record
             MERGE (p:Patient {patient_id: record.pid})
-            SET p.notes = record.notes
+            
+            MERGE (n:Notes {patient_id: record.pid})
+            ON CREATE SET n.content = record.notes, n.created_at = timestamp()
+            ON MATCH SET n.content = record.notes, n.updated_at = timestamp()
+            
+            MERGE (p)-[:HAS_NOTES]->(n)
+            
             MERGE (study:Study {study_id: record.study_id})
             MERGE (p)-[:HAS_STUDY]->(study)
             MERGE (series:Series {series_id: record.series_id})
@@ -741,11 +747,12 @@ with driver.session() as session:
     new_notes = "Updated notes: Patient follow-up scheduled for next month."
     start_time = time.time()
     result_e = session.run("""
-        MATCH (p:Patient {patient_id: $pid})
-        SET p.notes = $new_notes
-        RETURN p
+        MATCH (n:Notes {patient_id: $pid})
+        SET n.content = $new_notes,
+            n.updated_at = timestamp()
+        RETURN n
     """, pid=sample_patient_id, new_notes=new_notes)
-    res_e = [record["p"] for record in result_e]
+    res_e = [record["n"] for record in result_e]
     t_query_e = time.time() - start_time
 
     # ----------------- Use Case F: Delete Patient -----------------
@@ -762,10 +769,11 @@ with driver.session() as session:
     # Delete patient and all connected nodes (cascading delete)
     session.run("""
         MATCH (p:Patient {patient_id: $pid})
+        OPTIONAL MATCH (n:Notes {patient_id: $pid})
         OPTIONAL MATCH (p)-[:HAS_STUDY]->(study:Study)
         OPTIONAL MATCH (study)-[:HAS_SERIES]->(series:Series)
         OPTIONAL MATCH (series)-[:CONTAINS]->(img:Image)
-        DETACH DELETE p, study, series, img
+        DETACH DELETE p, n, study, series, img
     """, pid=sample_patient_id)
     t_query_f = time.time() - start_time
     deleted_count_f = deleted_images_count
@@ -776,7 +784,14 @@ with driver.session() as session:
     start_time = time.time()
     result_g = session.run("""
         MERGE (p:Patient {patient_id: $pid})
-        SET p.notes = $notes
+        
+        // Create a single Notes node with patient_id
+        MERGE (n:Notes {patient_id: $pid})
+        ON CREATE SET n.content = $notes, n.created_at = timestamp()
+        
+        // Ensure there's only one HAS_NOTES relationship
+        MERGE (p)-[:HAS_NOTES]->(n)
+        
         MERGE (study:Study {study_id: $study_id})
         MERGE (p)-[:HAS_STUDY]->(study)
         MERGE (series:Series {series_id: $series_id})
@@ -791,7 +806,7 @@ with driver.session() as session:
             modality: $modality
         })
         CREATE (series)-[:CONTAINS]->(img)
-        RETURN p, img
+        RETURN p, n, img
     """, 
         pid=new_patient_id,
         notes="New test patient added via benchmark",
@@ -827,7 +842,7 @@ results_benchmark.append({
     "UseCaseF_DeletedRecords": deleted_count_f,
     "UseCaseG_InsertedRecords": len(res_g)
 })
-# print(res_c)
+print(res_c)
 print(f"Neo4j: Insert {t_insert:.2f}s | A:SimpleLookup {t_query_a2:.3f}s | B:Relationship {t_query_b:.3f}s | C:Aggregation {t_query_c:.3f}s | D:ComplexFilter {t_query_d:.3f}s | E:UpdateNotes {t_query_e:.3f}s | F:DeletePatient {t_query_f:.3f}s | G:AddPatient {t_query_g:.5f}s | UseCaseA_Records: {len(res_a2)} | UseCaseB_Records: {len(res_b)} | UseCaseC_Groups: {len(res_c)} | UseCaseD_Records: {len(res_d)} | UseCaseE_UpdatedRecords: {len(res_e)} | UseCaseF_DeletedRecords: {deleted_count_f} | UseCaseG_InsertedRecords: {len(res_g)}")
 print("\n===========================================")
 

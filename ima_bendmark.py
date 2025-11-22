@@ -13,11 +13,6 @@ import base64
 
 
 
-# ----------------- 0. Download data -----------------
-# url = "https://spine-mri-public-data.s3.ap-southeast-1.amazonaws.com/transformed/cleaned_mri_data.json"
-# print("Downloading data from S3...")
-# data_list = requests.get(url).json()
-# print(f"Downloaded {len(data_list)} records ✅")
 import os
 import json
 from pprint import pprint # For nicely formatted printing
@@ -116,10 +111,6 @@ def allow_upload_image(patient_id):
 data_for_mongo = copy.deepcopy(data_list)
 results_benchmark = []
 
-# ----------------- Chuẩn bị 100 patient_id random duy nhất cho cả 3 DB -----------------
-all_patient_ids = list(set(d['patient_id'] for d in data_list))
-sample_ids = random.sample(all_patient_ids, min(100, len(all_patient_ids)))
-print(f"Using the same {len(sample_ids)} random patient_id for all DBs ✅")
 
 # ----------------- 1. MongoDB -----------------
 print("\n=== MongoDB Benchmark ===")
